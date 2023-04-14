@@ -25,6 +25,8 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Println(slots)
+
 	session, err := p.OpenSession(slots[0], pkcs11.CKF_SERIAL_SESSION|pkcs11.CKF_RW_SESSION)
 	if err != nil {
 		panic(err)
