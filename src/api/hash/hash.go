@@ -28,39 +28,29 @@ import (
 func main() {
 	rotas := mux.NewRouter().StrictSlash(true)
 
-	rotas.HandleFunc("/hash", hash).Methods("GET")
-	rotas.HandleFunc("/", getAll).Methods("GET")
-	rotas.HandleFunc("/persons", create).Methods("POST")
+	rotas.HandleFunc("/hash", hash).Methods("POST")
 	var port = ":3000"
 	fmt.Println("Server running in port:", port)
 	log.Fatal(http.ListenAndServe(port, rotas))
 
 }
 
-type HashCode struct {
-	Hash       string
+type HashResponse struct {
+	Hash   string
+	Status string
+}
+
+type HashRequest struct {
 	ReturnCode string
+	Pin        string
+	Data       string
 }
 
-type Person struct {
-	Name string
-}
-
-var persons = []Person{
-
-	Person{Name: "Heisenberg"},
-	Person{Name: "Pinkman"},
-}
-
-func getAll(w http.ResponseWriter, r *http.Request) {
-
-	json.NewEncoder(w).Encode(persons)
-}
-
-func create(w http.ResponseWriter, r *http.Request) {
+func hash(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	var p Person
+	var hashRequest HashRequest
+	var hashResponse HashResponse
 
 	body, err := ioutil.ReadAll(r.Body)
 
@@ -72,7 +62,7 @@ func create(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	if err := json.Unmarshal(body, &p); err != nil {
+	if err := json.Unmarshal(body, &hashRequest); err != nil {
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(422)
 		if err := json.NewEncoder(w).Encode(err); err != nil {
@@ -80,20 +70,10 @@ func create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	json.Unmarshal(body, &p)
+	json.Unmarshal(body, &hashRequest)
 
-	persons = append(persons, p)
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(p); err != nil {
-		panic(err)
-	}
-}
-
-func hash(w http.ResponseWriter, r *http.Request) {
 	p := pkcs11.New("/usr/lib/softhsm/libsofthsm2.so")
-	err := p.Initialize()
+	err = p.Initialize()
 	if err != nil {
 		panic(err)
 	}
@@ -114,21 +94,26 @@ func hash(w http.ResponseWriter, r *http.Request) {
 	}
 	defer p.CloseSession(session)
 
-	err = p.Login(session, pkcs11.CKU_USER, "8764329")
+	err = p.Login(session, pkcs11.CKU_USER, hashRequest.Pin)
 	if err != nil {
 		panic(err)
 	}
 	defer p.Logout(session)
 
 	p.DigestInit(session, []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_SHA_1, nil)})
-	hash, err := p.Digest(session, []byte("this is a string"))
+	hash, err := p.Digest(session, []byte(hashRequest.Data))
 	if err != nil {
 		panic(err)
 	}
 
-	for _, d := range hash {
-		fmt.Printf("%x", d)
+	hashResponse.Hash = string(hash[:])
+	hashResponse.Status = "Ok"
+
+	fmt.Println(hashResponse.Hash)
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(hashResponse); err != nil {
+		panic(err)
 	}
-	fmt.Println()
-	json.NewEncoder(w).Encode(hash)
 }
