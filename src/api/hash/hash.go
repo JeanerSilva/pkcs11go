@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -16,13 +17,12 @@ import (
 //softhsm2-util --init-token --slot 1 --label "test2" --so-pin 5462 --pin 8764329
 //softhsm2-util --init-token --slot 0 --label "test" --so-pin 5462 --pin 8764329
 
-// GET http://localhost:3000/
-
-// POST http://localhost:3000/
+// POST http://localhost:3000/hash
 /*
- {
-   Name: "Heisenberg"
-  }
+{
+	"Pin":"8764329",
+	"Data":"teste de string"
+}
 */
 
 func main() {
@@ -41,9 +41,8 @@ type HashResponse struct {
 }
 
 type HashRequest struct {
-	ReturnCode string
-	Pin        string
-	Data       string
+	Pin  string
+	Data string
 }
 
 func hash(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +105,9 @@ func hash(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	hashResponse.Hash = string(hash[:])
+	hashResponse.Hash = hex.EncodeToString(hash)
+
+	//hashResponse.Hash = string(hash[:])
 	hashResponse.Status = "Ok"
 
 	fmt.Println(hashResponse.Hash)
